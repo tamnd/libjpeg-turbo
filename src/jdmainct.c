@@ -428,7 +428,7 @@ GLOBAL(void)
 _jinit_d_main_controller(j_decompress_ptr cinfo, boolean need_full_buffer)
 {
   my_main_ptr main_ptr;
-  int ci, rgroup, ngroups;
+  int ci, rgroup, ngroups, row;
   jpeg_component_info *compptr;
 
 #ifdef D_LOSSLESS_SUPPORTED
@@ -477,6 +477,16 @@ _jinit_d_main_controller(j_decompress_ptr cinfo, boolean need_full_buffer)
                         ((j_common_ptr)cinfo, JPOOL_IMAGE,
                          compptr->width_in_blocks * compptr->_DCT_scaled_size,
                          (JDIMENSION)(rgroup * ngroups));
+    /* The upsamplers always process whole row groups, so they read rows that
+     * the IDCT or the lossless decoder never writes: the rows below the last
+     * real row in the last iMCU row, and the context rows above the first row
+     * that jpeg_skip_scanlines() resumes at.  Those samples never reach the
+     * output, but reading them is a read of uninitialized memory, so start
+     * every row out as zeros. */
+    for (row = 0; row < rgroup * ngroups; row++)
+      jzero_far((void *)main_ptr->buffer[ci][row],
+                (size_t)compptr->width_in_blocks * compptr->_DCT_scaled_size *
+                sizeof(_JSAMPLE));
   }
 }
 
