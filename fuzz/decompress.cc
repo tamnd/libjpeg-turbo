@@ -99,7 +99,13 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     if ((dstBuf = tj3Alloc(w * h * tjPixelSize[pf] * sampleSize)) == NULL)
       goto bailout;
 
-    if (precision == 8) {
+    /* The 8-bit functions handle 2 to 8 bits of lossless data precision and the
+       12-bit functions handle 9 to 12, so branch on the range rather than on
+       the exact value.  Otherwise a lossless image with 2 to 7 or 9 to 11 bits
+       of data precision would be passed to tj3Decompress16(), which rejects it
+       before decoding anything, with a destination buffer sized for the wrong
+       sample size. */
+    if (precision <= 8) {
       if (tj3Decompress8(handle, data, size, (unsigned char *)dstBuf, 0,
                          pf) == 0) {
         /* Touch all of the output pixels in order to catch uninitialized reads
@@ -109,7 +115,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
       } else if (!strcmp(tj3GetErrorStr(handle),
                          "Progressive JPEG image has more than 100 scans"))
         goto bailout;
-    } else if (precision == 12) {
+    } else if (precision <= 12) {
       if (tj3Decompress12(handle, data, size, (short *)dstBuf, 0, pf) == 0) {
         /* Touch all of the output pixels in order to catch uninitialized reads
            when using MemorySanitizer. */
